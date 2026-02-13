@@ -1,0 +1,39 @@
+# ===== Python / Backend =====
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ===== Node / Frontend =====
+node_modules/
+frontend/dist/
+backend/dist/
+
+# ===== Environment =====
+.env
+.env.*
+!.env.example
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Logs =====
+*.log
+npm-debug.log*
+
+# ===== Misc =====
+*.bak
+*.tmp
