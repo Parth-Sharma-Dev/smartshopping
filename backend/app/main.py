@@ -3,7 +3,8 @@ main.py — FastAPI application entry point.
 
 - Mounts routes and sqladmin
 - WebSocket endpoint for real-time price/stock broadcasts
-- Background tasks: restock loop + price decay
+- Background tasks: restock loop + price decay (only when game active)
+- Admin endpoints for game session lifecycle
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqladmin import Admin
 
 from .database import engine, async_session, Base
@@ -23,7 +25,11 @@ from .models import Item, User, Transaction
 from .routes import router
 from .websocket_manager import manager
 from .admin import UserAdmin, ItemAdmin, TransactionAdmin
-from .seed import seed as seed_db
+from .seed import seed as seed_db, SEED_ITEMS
+from .game_state import game_state
+from .schemas import (
+    AdminItemUpdate, ItemResponse, GameStateResponse, WinnerEntry,
+)
 
 # ── Constants ────────────────────────────────────────────
 RESTOCK_CHECK_INTERVAL = 2        # seconds between restock checks
@@ -32,6 +38,8 @@ DECAY_CHECK_INTERVAL = 5          # seconds between decay sweeps
 DECAY_INACTIVITY_THRESHOLD = 10   # seconds of no purchases before decay
 DECAY_PERCENTAGE = 0.02           # 2% price decay per tick
 MIN_PRICE_FACTOR = 0.5            # price floor = base_price * 0.5
+DEFAULT_BALANCE = 100_000.00      # starting balance for users
+DEFAULT_STOCK = 15                # starting stock for items
 
 
 # ── Background Tasks ────────────────────────────────────
@@ -40,38 +48,39 @@ async def restock_loop():
     """Check for sold-out items and restock after RESTOCK_DELAY seconds."""
     while True:
         try:
-            async with async_session() as db:
-                now = datetime.now(timezone.utc)
-                cutoff = now - timedelta(seconds=RESTOCK_DELAY)
+            if game_state.is_active:
+                async with async_session() as db:
+                    now = datetime.now(timezone.utc)
+                    cutoff = now - timedelta(seconds=RESTOCK_DELAY)
 
-                result = await db.execute(
-                    select(Item)
-                    .where(Item.is_sold_out == True)
-                    .where(Item.sold_out_timestamp != None)
-                    .where(Item.sold_out_timestamp <= cutoff)
-                )
-                items_to_restock = result.scalars().all()
-
-                for item in items_to_restock:
-                    item.current_stock = 10
-                    item.is_sold_out = False
-                    item.sold_out_timestamp = None
-                    # Price hike penalty on restock
-                    item.current_price = round(
-                        item.current_price * item.restock_penalty_multiplier, 2
+                    result = await db.execute(
+                        select(Item)
+                        .where(Item.is_sold_out == True)
+                        .where(Item.sold_out_timestamp != None)
+                        .where(Item.sold_out_timestamp <= cutoff)
                     )
+                    items_to_restock = result.scalars().all()
 
-                    await manager.broadcast({
-                        "type": "ITEM_UPDATE",
-                        "item_id": item.id,
-                        "name": item.name,
-                        "new_price": item.current_price,
-                        "new_stock": item.current_stock,
-                        "is_sold_out": False,
-                    })
+                    for item in items_to_restock:
+                        item.current_stock = DEFAULT_STOCK
+                        item.is_sold_out = False
+                        item.sold_out_timestamp = None
+                        # Price hike penalty on restock
+                        item.current_price = round(
+                            item.current_price * item.restock_penalty_multiplier, 2
+                        )
 
-                if items_to_restock:
-                    await db.commit()
+                        await manager.broadcast({
+                            "type": "ITEM_UPDATE",
+                            "item_id": item.id,
+                            "name": item.name,
+                            "new_price": item.current_price,
+                            "new_stock": item.current_stock,
+                            "is_sold_out": False,
+                        })
+
+                    if items_to_restock:
+                        await db.commit()
 
         except Exception as e:
             print(f"[restock_loop] Error: {e}")
@@ -83,41 +92,42 @@ async def price_decay_loop():
     """Lower prices of items that haven't been purchased recently."""
     while True:
         try:
-            async with async_session() as db:
-                now = datetime.now(timezone.utc)
-                threshold = now - timedelta(seconds=DECAY_INACTIVITY_THRESHOLD)
+            if game_state.is_active:
+                async with async_session() as db:
+                    now = datetime.now(timezone.utc)
+                    threshold = now - timedelta(seconds=DECAY_INACTIVITY_THRESHOLD)
 
-                result = await db.execute(
-                    select(Item)
-                    .where(Item.is_sold_out == False)
-                    .where(
-                        (Item.last_purchase_at == None) |
-                        (Item.last_purchase_at <= threshold)
+                    result = await db.execute(
+                        select(Item)
+                        .where(Item.is_sold_out == False)
+                        .where(
+                            (Item.last_purchase_at == None) |
+                            (Item.last_purchase_at <= threshold)
+                        )
                     )
-                )
-                idle_items = result.scalars().all()
+                    idle_items = result.scalars().all()
 
-                for item in idle_items:
-                    floor_price = item.base_price * MIN_PRICE_FACTOR
-                    new_price = round(item.current_price * (1 - DECAY_PERCENTAGE), 2)
+                    for item in idle_items:
+                        floor_price = item.base_price * MIN_PRICE_FACTOR
+                        new_price = round(item.current_price * (1 - DECAY_PERCENTAGE), 2)
 
-                    if new_price < floor_price:
-                        new_price = round(floor_price, 2)
+                        if new_price < floor_price:
+                            new_price = round(floor_price, 2)
 
-                    if new_price != item.current_price:
-                        item.current_price = new_price
+                        if new_price != item.current_price:
+                            item.current_price = new_price
 
-                        await manager.broadcast({
-                            "type": "ITEM_UPDATE",
-                            "item_id": item.id,
-                            "name": item.name,
-                            "new_price": item.current_price,
-                            "new_stock": item.current_stock,
-                            "is_sold_out": item.is_sold_out,
-                        })
+                            await manager.broadcast({
+                                "type": "ITEM_UPDATE",
+                                "item_id": item.id,
+                                "name": item.name,
+                                "new_price": item.current_price,
+                                "new_stock": item.current_stock,
+                                "is_sold_out": item.is_sold_out,
+                            })
 
-                if idle_items:
-                    await db.commit()
+                    if idle_items:
+                        await db.commit()
 
         except Exception as e:
             print(f"[price_decay_loop] Error: {e}")
@@ -152,7 +162,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Smart Shopping",
     description="Real-time competitive market simulation game",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -173,6 +183,153 @@ admin = Admin(app, engine, title="Smart Shopping Admin")
 admin.add_view(UserAdmin)
 admin.add_view(ItemAdmin)
 admin.add_view(TransactionAdmin)
+
+
+# ── Admin: Game State ────────────────────────────────────
+
+@app.get("/api/admin/state", response_model=GameStateResponse)
+async def get_game_state():
+    """Return the current game session state."""
+    data = game_state.to_dict()
+    data["connected_players"] = manager.connection_count
+    data["winners"] = [WinnerEntry(**w) for w in data["winners"]]
+    return GameStateResponse(**data)
+
+
+@app.post("/api/admin/start-game")
+async def start_game():
+    """Start a new game round. Broadcasts GAME_STARTED to all clients."""
+    if game_state.is_active:
+        raise HTTPException(status_code=400, detail="Game is already running.")
+
+    game_state.start()
+    await manager.broadcast({"type": "GAME_STARTED"})
+    return {
+        "status": "ok",
+        "round": game_state.round_number,
+        "message": f"Round {game_state.round_number} started! Sent to {manager.connection_count} clients.",
+    }
+
+
+@app.post("/api/admin/stop-game")
+async def stop_game():
+    """Stop the current game. Calculate winners and broadcast GAME_OVER."""
+    if not game_state.is_active:
+        raise HTTPException(status_code=400, detail="No game is currently running.")
+
+    # Calculate top 3 winners (finished first, then highest balance)
+    async with async_session() as db:
+        result = await db.execute(
+            select(User).order_by(User.is_finished.desc(), User.balance.desc())
+        )
+        all_users = result.scalars().all()
+
+    winners = []
+    for rank, user in enumerate(all_users[:3], start=1):
+        winners.append({
+            "rank": rank,
+            "username": user.username,
+            "roll_number": user.roll_number,
+            "balance": round(user.balance, 2),
+        })
+
+    game_state.stop(winners)
+
+    await manager.broadcast({
+        "type": "GAME_OVER",
+        "winners": winners,
+    })
+
+    return {
+        "status": "ok",
+        "message": "Game ended.",
+        "winners": winners,
+    }
+
+
+@app.post("/api/admin/reset-game")
+async def reset_game():
+    """Reset all users and items for a fresh round."""
+    if game_state.is_active:
+        raise HTTPException(status_code=400, detail="Stop the game before resetting.")
+
+    async with async_session() as db:
+        # Reset all user balances and status
+        await db.execute(
+            update(User).values(
+                balance=DEFAULT_BALANCE,
+                is_finished=False,
+            )
+        )
+
+        # Delete all transactions
+        await db.execute(
+            Transaction.__table__.delete()
+        )
+
+        # Build a lookup from seed data: name → seed values
+        seed_lookup = {item["name"]: item for item in SEED_ITEMS}
+
+        # Reset items to seed values
+        result = await db.execute(select(Item))
+        items = result.scalars().all()
+        for item in items:
+            seed = seed_lookup.get(item.name)
+            if seed:
+                item.base_price = seed["base_price"]
+                item.current_price = seed["base_price"] * 2  # 2x base as per seed logic
+            else:
+                item.current_price = item.base_price * 2
+            item.current_stock = DEFAULT_STOCK
+            item.is_sold_out = False
+            item.sold_out_timestamp = None
+            item.last_purchase_at = None
+
+        await db.commit()
+
+    game_state.reset()
+
+    await manager.broadcast({"type": "GAME_RESET"})
+
+    return {
+        "status": "ok",
+        "message": "All balances, inventories, and items reset.",
+    }
+
+
+# ── Admin: Update Item ──────────────────────────────────
+
+@app.patch("/api/admin/update-item/{item_id}", response_model=ItemResponse)
+async def admin_update_item(item_id: int, body: AdminItemUpdate):
+    """Admin endpoint to update item price/stock."""
+    async with async_session() as db:
+        item = await db.get(Item, item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        if body.current_price is not None:
+            item.current_price = body.current_price
+        if body.current_stock is not None:
+            item.current_stock = body.current_stock
+        if body.base_price is not None:
+            item.base_price = body.base_price
+        if body.is_sold_out is not None:
+            item.is_sold_out = body.is_sold_out
+
+        await db.commit()
+        await db.refresh(item)
+
+        # Broadcast the change
+        await manager.broadcast({
+            "type": "ITEM_UPDATE",
+            "item_id": item.id,
+            "name": item.name,
+            "new_price": item.current_price,
+            "new_stock": item.current_stock,
+            "is_sold_out": item.is_sold_out,
+        })
+
+        return ItemResponse.model_validate(item)
 
 
 # ── WebSocket Endpoint ───────────────────────────────────

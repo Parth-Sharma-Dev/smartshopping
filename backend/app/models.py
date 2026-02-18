@@ -30,6 +30,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = Column(String(50), unique=True, nullable=False, index=True)
+    roll_number = Column(String(50), nullable=True)
     balance = Column(Float, default=100_000.00, nullable=False)
     is_finished = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
@@ -45,12 +46,16 @@ class Item(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), unique=True, nullable=False)
+    category = Column(String(50), default="General", nullable=False)
     base_price = Column(Float, nullable=False)
     current_price = Column(Float, nullable=False)
-    current_stock = Column(Integer, default=10, nullable=False)
+    # PATCH: Increased stock to 15 to handle 150 users better
+    current_stock = Column(Integer, default=15, nullable=False)
     is_sold_out = Column(Boolean, default=False, nullable=False)
     sold_out_timestamp = Column(DateTime(timezone=True), nullable=True)
-    restock_penalty_multiplier = Column(Float, default=1.2, nullable=False)
+    # PATCH: Reduced penalty to 1.1 (10%) to prevent price death spiral
+    restock_penalty_multiplier = Column(Float, default=1.1, nullable=False)
+    image = Column(String(500), nullable=True)
     last_purchase_at = Column(DateTime(timezone=True), nullable=True)
 
     transactions = relationship("Transaction", back_populates="item", lazy="selectin")

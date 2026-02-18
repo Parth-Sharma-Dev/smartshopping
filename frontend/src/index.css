@@ -1,206 +1,255 @@
 @import "tailwindcss";
 
-/* ── CSS VARIABLES ─ "Warm Bazaar" Theme ─────────────── */
-:root {
-  --bg-cream:       #faf6f1;
-  --bg-warm:        #f3ece3;
-  --bg-card:        #ffffff;
-  --bg-card-hover:  #fefcf9;
-  --bg-deep:        #2d1f14;
+/* ═══════════════════════════════════════════════════════
+   SCORCHED TERMINAL — Design System
+   ═══════════════════════════════════════════════════════ */
 
-  --terracotta:     #c2553a;
-  --terracotta-dim: #a04530;
-  --saffron:        #e8a838;
-  --saffron-light:  #f5c96b;
-  --olive:          #4a6741;
-  --olive-light:    #6b8c5e;
-  --plum:           #6b3a5d;
-  --plum-light:     #8e5a7e;
+@theme {
+  --font-heading: "Syne", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 
-  --text-heading:   #2d1f14;
-  --text-body:      #4a3728;
-  --text-muted:     #8c7a6b;
-  --text-dim:       #b8a99a;
+  /* ── Backgrounds ── */
+  --color-void: #0F172A;   /* Deep Slate */
+  --color-slab: #1E293B;   /* Lighter Slate */
+  --color-panel: #334155;  /* Panel Background */
+  --color-surface: #1E293B; /* Card Background */
+  --color-edge: #475569;    /* Borders */
 
-  --border-warm:    #e0d5c8;
-  --border-strong:  #c9b8a5;
+  /* ── Text ── */
+  --color-text: #F8FAFC;    /* Primary Text (Off-White) */
+  --color-muted: #94A3B8;   /* Secondary Text (Muted Gray) */
+  --color-bright: #FFFFFF;  /* Highlight Text */
 
-  --shadow-card:    0 2px 12px rgba(45, 31, 20, 0.08), 0 1px 3px rgba(45, 31, 20, 0.06);
-  --shadow-card-lg: 0 8px 32px rgba(45, 31, 20, 0.12), 0 2px 8px rgba(45, 31, 20, 0.08);
-  --shadow-glow-terracotta: 0 4px 20px rgba(194, 85, 58, 0.2);
-  --shadow-glow-olive:      0 4px 20px rgba(74, 103, 65, 0.2);
-  --shadow-glow-saffron:    0 4px 20px rgba(232, 168, 56, 0.25);
+  /* ── Accents ── */
+  --color-primary: #8B5CF6;    /* Electric Purple */
+  --color-primary-dim: #7C3AED;
+  --color-primary-glow: #A78BFA;
+
+  --color-cyan: #06B6D4;       /* Cyber Cyan */
+  --color-cyan-dim: #0891B2;
+  --color-cyan-glow: #22D3EE;
+
+  --color-profit: #10B981;     /* Neon Green */
+  --color-profit-dim: #059669;
+  --color-loss: #EF4444;       /* Bright Crimson */
+  --color-loss-dim: #B91C1C;
+
+  --color-gold: #EAB308;       /* Royal Gold (Leaderboard only) */
 }
 
-/* ── GLOBALS ─────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* ── Base Reset ────────────────────────────────────────── */
+
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
-html {
-  font-size: 16px;
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--color-void);
+  color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  font-family: 'DM Sans', system-ui, sans-serif;
-  background-color: var(--bg-cream);
-  color: var(--text-body);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+/* ── Scrollbar ─────────────────────────────────────────── */
 
-/* Warm paper texture overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    radial-gradient(circle at 20% 20%, rgba(232, 168, 56, 0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(194, 85, 58, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(107, 58, 93, 0.02) 0%, transparent 60%);
-}
-
-/* Subtle decorative gradient at top */
-body::after {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 300px;
-  background: linear-gradient(180deg, rgba(232, 168, 56, 0.06) 0%, transparent 100%);
-  z-index: 0;
-  pointer-events: none;
-}
-
-#root {
-  position: relative;
-  z-index: 1;
-  min-height: 100vh;
-}
-
-/* ── TYPOGRAPHY ──────────────────────────────────────── */
-.font-heading {
-  font-family: 'Playfair Display', Georgia, serif;
-}
-
-.font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── SCROLLBAR ───────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 7px;
+  width: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--bg-cream);
+  background: var(--color-slab);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--border-warm);
-  border-radius: 4px;
+  background: var(--color-edge);
+  border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
+  background: var(--color-muted);
 }
 
-/* ── CARD FLASH ANIMATIONS ───────────────────────────── */
-@keyframes flash-green {
-  0%   { box-shadow: inset 0 0 0 2px var(--olive), var(--shadow-glow-olive); }
-  100% { box-shadow: var(--shadow-card); }
-}
-@keyframes flash-red {
-  0%   { box-shadow: inset 0 0 0 2px var(--terracotta), var(--shadow-glow-terracotta); }
-  100% { box-shadow: var(--shadow-card); }
-}
+/* ── Keyframes ─────────────────────────────────────────── */
 
-.card-flash-green {
-  animation: flash-green 0.8s ease-out forwards;
-}
-.card-flash-red {
-  animation: flash-red 0.8s ease-out forwards;
-}
-
-/* ── OWNED CARD GLOW ─────────────────────────────────── */
-@keyframes owned-pulse {
-  0%, 100% { box-shadow: inset 0 0 0 2px var(--saffron), 0 4px 16px rgba(232, 168, 56, 0.15); }
-  50%      { box-shadow: inset 0 0 0 2px var(--saffron), 0 8px 28px rgba(232, 168, 56, 0.28); }
-}
-.card-owned {
-  animation: owned-pulse 3s ease-in-out infinite;
-}
-
-/* ── SHAKE ANIMATION ─────────────────────────────────── */
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
-}
-.card-shake {
-  animation: shake 0.4s ease-in-out;
-}
-
-/* ── CONFETTI ────────────────────────────────────────── */
-@keyframes confetti-fall {
-  0% {
-    transform: translateY(-100vh) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100vh) rotate(720deg);
-    opacity: 0;
-  }
-}
-.confetti-piece {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  top: -10px;
-  animation: confetti-fall linear infinite;
-}
-
-/* ── SOLD OUT BADGE ──────────────────────────────────── */
-@keyframes sold-out-pulse {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.6; }
-}
-
-/* ── SPINNER ─────────────────────────────────────────── */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-.spinner {
-  animation: spin 0.6s linear infinite;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  width: 18px;
-  height: 18px;
-}
-
-/* ── SCANLINE EFFECT (REGISTER PAGE) ─────────────────── */
 @keyframes scanline {
   0% { transform: translateY(-100%); }
   100% { transform: translateY(100vh); }
 }
 
-/* ── PROGRESS BAR SEGMENT ────────────────────────────── */
-.progress-segment {
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
-/* ── WARM BUTTON HOVER ───────────────────────────────── */
-@keyframes btn-shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
+/* Updated Price Hike - Flash RED */
+@keyframes price-hike {
+  0% { color: var(--color-text); text-shadow: none; }
+  15% { color: var(--color-loss); text-shadow: 0 0 12px var(--color-loss); }
+  100% { color: var(--color-text); text-shadow: none; }
 }
+
+/* Updated Price Drop - Flash GREEN */
+@keyframes price-drop {
+  0% { color: var(--color-text); text-shadow: none; }
+  15% { color: var(--color-profit); text-shadow: 0 0 12px var(--color-profit); }
+  100% { color: var(--color-text); text-shadow: none; }
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 1px); }
+}
+
+@keyframes toast-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes stock-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ── Utility Classes ───────────────────────────────────── */
+
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.scanline-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.008) 2px,
+    rgba(255, 255, 255, 0.008) 4px
+  );
+}
+
+.animate-price-hike {
+  animation: price-hike 1.2s ease-out;
+}
+
+.animate-price-drop {
+  animation: price-drop 1.2s ease-out;
+}
+
+.animate-float-in {
+  animation: float-in 0.4s ease-out both;
+}
+
+.animate-radar {
+  animation: radar-sweep 3s linear infinite;
+}
+
+.animate-glitch {
+  animation: glitch 0.3s ease-in-out;
+}
+
+.animate-toast-in {
+  animation: toast-in 0.4s ease-out both;
+}
+
+.animate-toast-out {
+  animation: toast-out 0.3s ease-in both;
+}
+
+.animate-stock-pulse {
+  animation: stock-pulse 1.5s ease-in-out infinite;
+}
+
+.glow-primary {
+  text-shadow: 0 0 8px var(--color-primary), 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+.glow-profit {
+  text-shadow: 0 0 8px var(--color-profit), 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.glow-loss {
+  text-shadow: 0 0 8px var(--color-loss), 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* New: Gold Glow for Leaderboard */
+.glow-gold-box {
+  box-shadow: 0 0 15px rgba(234, 179, 8, 0.2), inset 0 0 10px rgba(234, 179, 8, 0.1);
+  border-color: var(--color-gold) !important;
+}
+
+/* New: Fire Sale Pulse */
+.fire-sale-pulse {
+  animation: fire-sale 1.5s infinite;
+  border-color: var(--color-loss) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
+
+@keyframes fire-sale {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* ── Confetti Particles (Game Over Modal) ─────────────── */
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(var(--rotation, 720deg));
+    opacity: 0;
+  }
+}
+
+.confetti-particle {
+  position: absolute;
+  top: -10px;
+  left: var(--x, 50vw);
+  width: var(--size, 6px);
+  height: var(--size, 6px);
+  background: var(--color, #eab308);
+  border-radius: 1px;
+  animation: confetti-fall var(--duration, 3s) ease-in var(--delay, 0s) infinite;
+  pointer-events: none;
+}
+
+.confetti-particle:nth-child(even) {
+  border-radius: 50%;
+}
+

@@ -1,0 +1,366 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+    Play, Square, RotateCcw, Wifi, Users, Zap, Hash,
+    ChevronDown, ChevronUp, Save, AlertTriangle,
+    Trophy, Package, DollarSign, BarChart3
+} from 'lucide-react';
+
+export default function AdminPanel() {
+    const [gameState, setGameState] = useState(null);
+    const [items, setItems] = useState([]);
+    const [loading, setLoading] = useState('');
+    const [error, setError] = useState('');
+    const [editingItem, setEditingItem] = useState(null);
+    const [editValues, setEditValues] = useState({});
+    const [sortField, setSortField] = useState('id');
+    const [sortDir, setSortDir] = useState('asc');
+
+    // ── Fetch State ──────────────────────────────────────
+    const fetchState = useCallback(async () => {
+        try {
+            const res = await fetch('/api/admin/state');
+            if (res.ok) setGameState(await res.json());
+        } catch { /* ignore */ }
+    }, []);
+
+    const fetchItems = useCallback(async () => {
+        try {
+            const res = await fetch('/api/items');
+            if (res.ok) setItems(await res.json());
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => {
+        fetchState();
+        fetchItems();
+        const interval = setInterval(fetchState, 3000);
+        return () => clearInterval(interval);
+    }, [fetchState, fetchItems]);
+
+    // ── Actions ──────────────────────────────────────────
+    async function doAction(url, label) {
+        setLoading(label);
+        setError('');
+        try {
+            const res = await fetch(url, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.detail || `${label} failed`);
+            }
+            await fetchState();
+            await fetchItems();
+        } catch {
+            setError(`Network error during ${label}`);
+        }
+        setLoading('');
+    }
+
+    // ── Item Edit ────────────────────────────────────────
+    function startEdit(item) {
+        setEditingItem(item.id);
+        setEditValues({
+            current_price: item.current_price,
+            current_stock: item.current_stock,
+            base_price: item.base_price,
+        });
+    }
+
+    async function saveEdit(itemId) {
+        try {
+            const res = await fetch(`/api/admin/update-item/${itemId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editValues),
+            });
+            if (res.ok) {
+                setEditingItem(null);
+                await fetchItems();
+            }
+        } catch { /* ignore */ }
+    }
+
+    // ── Sort ─────────────────────────────────────────────
+    function toggleSort(field) {
+        if (sortField === field) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDir('asc');
+        }
+    }
+
+    const sortedItems = [...items].sort((a, b) => {
+        const mul = sortDir === 'asc' ? 1 : -1;
+        if (typeof a[sortField] === 'string') return a[sortField].localeCompare(b[sortField]) * mul;
+        return ((a[sortField] ?? 0) - (b[sortField] ?? 0)) * mul;
+    });
+
+    const SortIcon = ({ field }) => {
+        if (sortField !== field) return null;
+        return sortDir === 'asc' ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />;
+    };
+
+    const isActive = gameState?.is_active;
+    const totalStock = items.reduce((s, i) => s + i.current_stock, 0);
+    const soldOutCount = items.filter(i => i.is_sold_out).length;
+
+    return (
+        <div className="h-full overflow-y-auto bg-[#0a0e1a] text-[#e2e8f0] font-mono">
+            {/* ═══ HEADER ═══ */}
+            <header className="border-b border-[#1e293b] bg-[#0f1629]/80 backdrop-blur-md sticky top-0 z-50">
+                <div className="max-w-[1600px] mx-auto !px-6 !py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/30 flex items-center justify-center">
+                            <Zap className="w-5 h-5 text-[#f59e0b]" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: 'Syne, sans-serif' }}>
+                                COMMAND CENTER
+                            </h1>
+                            <p className="text-[10px] text-[#64748b] tracking-[0.2em] uppercase">Admin Console</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {gameState && (
+                            <div className="flex items-center gap-2 text-xs">
+                                <Users className="w-4 h-4 text-[#64748b]" />
+                                <span className="text-[#94a3b8] font-medium">{gameState.connected_players} online</span>
+                            </div>
+                        )}
+                        <div className={`flex items-center gap-2 !px-3 !py-1.5 rounded-full text-xs font-bold tracking-wider uppercase border ${isActive
+                            ? 'border-[#10b981] text-[#10b981] bg-[#10b981]/10'
+                            : 'border-[#ef4444] text-[#ef4444] bg-[#ef4444]/10'
+                            }`}>
+                            <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-[#10b981] animate-pulse' : 'bg-[#ef4444]'}`} />
+                            {isActive ? 'LIVE' : 'OFFLINE'}
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div className="max-w-[1600px] mx-auto !px-6 !py-8">
+                {/* ═══ GAME CONTROLS ═══ */}
+                <section className="!mb-8">
+                    <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-[#64748b] !mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4" />
+                        Game Session — Round {gameState?.round_number || 0}
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {/* Stats Cards */}
+                        <div className="bg-[#1e293b] border border-[#334155] rounded-xl !p-5">
+                            <p className="text-[10px] uppercase tracking-wider text-[#64748b] !mb-1">Status</p>
+                            <p className={`text-2xl font-bold ${isActive ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                                {isActive ? 'ACTIVE' : 'STOPPED'}
+                            </p>
+                        </div>
+                        <div className="bg-[#1e293b] border border-[#334155] rounded-xl !p-5">
+                            <p className="text-[10px] uppercase tracking-wider text-[#64748b] !mb-1">Total Items</p>
+                            <p className="text-2xl font-bold text-white">{items.length}</p>
+                        </div>
+                        <div className="bg-[#1e293b] border border-[#334155] rounded-xl !p-5">
+                            <p className="text-[10px] uppercase tracking-wider text-[#64748b] !mb-1">Total Stock</p>
+                            <p className="text-2xl font-bold text-[#06b6d4]">{totalStock}</p>
+                        </div>
+                        <div className="bg-[#1e293b] border border-[#334155] rounded-xl !p-5">
+                            <p className="text-[10px] uppercase tracking-wider text-[#64748b] !mb-1">Sold Out</p>
+                            <p className="text-2xl font-bold text-[#f59e0b]">{soldOutCount}</p>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 !mt-5">
+                        <button
+                            onClick={() => doAction('/api/admin/start-game', 'start')}
+                            disabled={isActive || !!loading}
+                            className="flex items-center gap-2 !px-6 !py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all
+                                bg-[#10b981] text-white hover:bg-[#059669] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <Play className="w-4 h-4" />
+                            {loading === 'start' ? 'Starting...' : 'Start Game'}
+                        </button>
+
+                        <button
+                            onClick={() => doAction('/api/admin/stop-game', 'stop')}
+                            disabled={!isActive || !!loading}
+                            className="flex items-center gap-2 !px-6 !py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all
+                                bg-[#ef4444] text-white hover:bg-[#dc2626] hover:shadow-[0_0_20px_rgba(239,68,68,0.3)]
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <Square className="w-4 h-4" />
+                            {loading === 'stop' ? 'Stopping...' : 'Stop Game'}
+                        </button>
+
+                        <button
+                            onClick={() => doAction('/api/admin/reset-game', 'reset')}
+                            disabled={isActive || !!loading}
+                            className="flex items-center gap-2 !px-6 !py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all
+                                bg-[#f59e0b] text-[#0a0e1a] hover:bg-[#d97706] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            {loading === 'reset' ? 'Resetting...' : 'Reset Round'}
+                        </button>
+                    </div>
+
+                    {/* Error */}
+                    {error && (
+                        <div className="!mt-4 flex items-center gap-2 bg-[#3b1214] border border-[#ef4444]/50 rounded-lg !px-4 !py-3 text-sm text-[#fca5a5]">
+                            <AlertTriangle className="w-4 h-4 text-[#ef4444] shrink-0" />
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Winners from last round */}
+                    {gameState?.winners?.length > 0 && !isActive && (
+                        <div className="!mt-5 bg-[#1e293b] border border-[#f59e0b]/30 rounded-xl !p-5">
+                            <h3 className="text-xs font-bold tracking-[0.2em] uppercase text-[#f59e0b] !mb-3 flex items-center gap-2">
+                                <Trophy className="w-4 h-4" />
+                                Last Round Winners
+                            </h3>
+                            <div className="space-y-2">
+                                {gameState.winners.map((w) => (
+                                    <div key={w.rank} className="flex items-center gap-3 text-sm">
+                                        <span className={`text-lg ${w.rank === 1 ? 'text-[#eab308]' : w.rank === 2 ? 'text-[#94a3b8]' : 'text-[#cd7f32]'}`}>
+                                            {w.rank === 1 ? '🥇' : w.rank === 2 ? '🥈' : '🥉'}
+                                        </span>
+                                        <span className="font-bold text-white">{w.username}</span>
+                                        {w.roll_number && <span className="text-[#64748b] font-mono text-xs">#{w.roll_number}</span>}
+                                        <span className="ml-auto font-mono text-[#10b981]">₹{Math.round(w.balance).toLocaleString('en-IN')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+
+                {/* ═══ ITEMS TABLE ═══ */}
+                <section>
+                    <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-[#64748b] !mb-4 flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Market Items ({items.length})
+                    </h2>
+
+                    <div className="bg-[#1e293b] border border-[#334155] rounded-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-[#334155] text-[10px] uppercase tracking-wider text-[#64748b]">
+                                        {[
+                                            ['id', '#'],
+                                            ['name', 'Name'],
+                                            ['category', 'Category'],
+                                            ['base_price', 'Base Price'],
+                                            ['current_price', 'Current Price'],
+                                            ['current_stock', 'Stock'],
+                                            ['is_sold_out', 'Status'],
+                                        ].map(([field, label]) => (
+                                            <th
+                                                key={field}
+                                                className="!px-4 !py-3 text-left cursor-pointer hover:text-white transition-colors select-none"
+                                                onClick={() => toggleSort(field)}
+                                            >
+                                                {label} <SortIcon field={field} />
+                                            </th>
+                                        ))}
+                                        <th className="!px-4 !py-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedItems.map((item) => {
+                                        const isEditing = editingItem === item.id;
+                                        return (
+                                            <tr key={item.id} className="border-b border-[#334155]/50 hover:bg-[#334155]/30 transition-colors">
+                                                <td className="!px-4 !py-3 text-[#64748b] font-mono">{item.id}</td>
+                                                <td className="!px-4 !py-3 font-medium text-white">{item.name}</td>
+                                                <td className="!px-4 !py-3">
+                                                    <span className="text-xs !px-2 !py-0.5 rounded bg-[#334155] text-[#94a3b8]">
+                                                        {item.category}
+                                                    </span>
+                                                </td>
+                                                <td className="!px-4 !py-3 font-mono">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="number"
+                                                            value={editValues.base_price}
+                                                            onChange={e => setEditValues(v => ({ ...v, base_price: +e.target.value }))}
+                                                            className="w-24 bg-[#0f1629] border border-[#475569] rounded !px-2 !py-1 text-white text-xs font-mono"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-[#94a3b8]">₹{item.base_price.toLocaleString('en-IN')}</span>
+                                                    )}
+                                                </td>
+                                                <td className="!px-4 !py-3 font-mono font-bold">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="number"
+                                                            value={editValues.current_price}
+                                                            onChange={e => setEditValues(v => ({ ...v, current_price: +e.target.value }))}
+                                                            className="w-24 bg-[#0f1629] border border-[#475569] rounded !px-2 !py-1 text-white text-xs font-mono"
+                                                        />
+                                                    ) : (
+                                                        <span className={item.current_price > item.base_price * 2 ? 'text-[#ef4444]' : item.current_price < item.base_price ? 'text-[#10b981]' : 'text-white'}>
+                                                            ₹{item.current_price.toLocaleString('en-IN')}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="!px-4 !py-3 font-mono">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="number"
+                                                            value={editValues.current_stock}
+                                                            onChange={e => setEditValues(v => ({ ...v, current_stock: +e.target.value }))}
+                                                            className="w-16 bg-[#0f1629] border border-[#475569] rounded !px-2 !py-1 text-white text-xs font-mono"
+                                                        />
+                                                    ) : (
+                                                        <span className={item.current_stock <= 3 ? 'text-[#ef4444]' : 'text-[#10b981]'}>
+                                                            {item.current_stock}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="!px-4 !py-3">
+                                                    {item.is_sold_out ? (
+                                                        <span className="text-[10px] !px-2 !py-0.5 rounded bg-[#ef4444]/20 text-[#ef4444] font-bold uppercase">Sold Out</span>
+                                                    ) : (
+                                                        <span className="text-[10px] !px-2 !py-0.5 rounded bg-[#10b981]/20 text-[#10b981] font-bold uppercase">In Stock</span>
+                                                    )}
+                                                </td>
+                                                <td className="!px-4 !py-3 text-right">
+                                                    {isEditing ? (
+                                                        <div className="flex gap-2 justify-end">
+                                                            <button
+                                                                onClick={() => saveEdit(item.id)}
+                                                                className="text-[10px] !px-3 !py-1.5 rounded bg-[#10b981] text-white font-bold uppercase hover:bg-[#059669] transition-colors"
+                                                            >
+                                                                <Save className="w-3 h-3 inline !mr-1" /> Save
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingItem(null)}
+                                                                className="text-[10px] !px-3 !py-1.5 rounded bg-[#334155] text-[#94a3b8] font-bold uppercase hover:bg-[#475569] transition-colors"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => startEdit(item)}
+                                                            className="text-[10px] !px-3 !py-1.5 rounded border border-[#475569] text-[#94a3b8] font-bold uppercase hover:border-[#f59e0b] hover:text-[#f59e0b] transition-colors"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    );
+}

@@ -24,6 +24,7 @@ from .schemas import (
     LeaderboardEntry,
 )
 from .websocket_manager import manager
+from .game_state import game_state
 
 router = APIRouter(prefix="/api", tags=["game"])
 
@@ -39,7 +40,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Username already taken")
 
-    user = User(username=req.username)
+    user = User(username=req.username, roll_number=req.roll_number)
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -47,9 +48,11 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     return UserResponse(
         id=user.id,
         username=user.username,
+        roll_number=user.roll_number,
         balance=user.balance,
         is_finished=user.is_finished,
         inventory={},
+        game_active=game_state.is_active,
     )
 
 
@@ -72,9 +75,11 @@ async def get_me(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     return UserResponse(
         id=user.id,
         username=user.username,
+        roll_number=user.roll_number,
         balance=user.balance,
         is_finished=user.is_finished,
         inventory=inventory,
+        game_active=game_state.is_active,
     )
 
 
@@ -98,6 +103,7 @@ async def leaderboard(db: AsyncSession = Depends(get_db)):
     return [
         LeaderboardEntry(
             username=u.username,
+            roll_number=u.roll_number,
             balance=u.balance,
             is_finished=u.is_finished,
         )
@@ -111,20 +117,9 @@ async def leaderboard(db: AsyncSession = Depends(get_db)):
 async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
     """
     Atomic purchase with row-level locking to prevent race conditions.
-
-    Flow:
-    1. BEGIN TRANSACTION (implicit with async session)
-    2. SELECT item FOR UPDATE — locks the row
-    3. Validate: stock > 0, not sold out
-    4. Validate: user balance >= current_price
-    5. Validate: user's inventory count for this item < 2
-    6. Deduct balance, decrement stock, create transaction
-    7. If stock hits 0 → mark sold out
-    8. Price hike: +2%
-    9. Check if user completed the full set → mark finished
-    10. COMMIT
-    11. Broadcast updated item state via WebSocket
     """
+    if not game_state.is_active:
+        raise HTTPException(status_code=400, detail="Game is not active. Wait for the admin to start.")
 
     async with db.begin():
         # ── Lock the item row ────────────────────────
@@ -187,8 +182,16 @@ async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
         # Decrement stock
         item.current_stock -= 1
 
-        # Price hike: +2% on every purchase
-        item.current_price = round(item.current_price * 1.02, 2)
+        # ── FIRE SALE LOGIC START ──
+        # If stock is 3 or less, CRASH price to base_price.
+        # Otherwise, hike price by 2%.
+        FIRE_SALE_THRESHOLD = 3
+
+        if item.current_stock <= FIRE_SALE_THRESHOLD and item.current_stock > 0:
+             item.current_price = item.base_price
+        else:
+             item.current_price = round(item.current_price * 1.02, 2)
+        # ── FIRE SALE LOGIC END ──
 
         # Record last purchase time
         item.last_purchase_at = datetime.now(timezone.utc)
@@ -244,6 +247,24 @@ async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
             "balance": user.balance,
         })
 
+    # Broadcast leaderboard update
+    lb_result = await db.execute(
+        select(User).order_by(User.is_finished.desc(), User.balance.desc())
+    )
+    lb_users = lb_result.scalars().all()
+    await manager.broadcast({
+        "type": "LEADERBOARD_UPDATE",
+        "leaderboard": [
+            {
+                "username": u.username,
+                "roll_number": u.roll_number,
+                "balance": u.balance,
+                "is_finished": u.is_finished,
+            }
+            for u in lb_users
+        ],
+    })
+
     return BuyResponse(
         success=True,
         message=f"Purchased {item.name} for ₹{purchase_price:.2f}",
@@ -251,6 +272,7 @@ async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
         item=ItemResponse(
             id=item.id,
             name=item.name,
+            category=item.category,
             base_price=item.base_price,
             current_price=item.current_price,
             current_stock=item.current_stock,
@@ -258,3 +280,4 @@ async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
         ),
         is_finished=is_now_finished,
     )
+    
