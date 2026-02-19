@@ -220,7 +220,9 @@ async def stop_game():
     # Calculate top 3 winners (finished first, then highest balance)
     async with async_session() as db:
         result = await db.execute(
-            select(User).order_by(User.is_finished.desc(), User.balance.desc())
+            select(User)
+            .where(User.is_eliminated == False)
+            .order_by(User.is_finished.desc(), User.balance.desc())
         )
         all_users = result.scalars().all()
 
@@ -233,11 +235,18 @@ async def stop_game():
             "balance": round(user.balance, 2),
         })
 
+    # Build full leaderboard for rank lookup
+    leaderboard = [
+        {"rank": rank, "username": user.username, "user_id": str(user.id)}
+        for rank, user in enumerate(all_users, start=1)
+    ]
+
     game_state.stop(winners)
 
     await manager.broadcast({
         "type": "GAME_OVER",
         "winners": winners,
+        "leaderboard": leaderboard,
     })
 
     return {
@@ -248,19 +257,56 @@ async def stop_game():
 
 
 @app.post("/api/admin/reset-game")
-async def reset_game():
-    """Reset all users and items for a fresh round."""
+async def reset_game(top_n: int = 0):
+    """Reset all users and items for a fresh round.
+    If top_n > 0, only the top N players (by balance) advance;
+    the rest are marked as eliminated.
+    """
     if game_state.is_active:
         raise HTTPException(status_code=400, detail="Stop the game before resetting.")
 
+    eliminated_ids = []
+
     async with async_session() as db:
-        # Reset all user balances and status
-        await db.execute(
-            update(User).values(
-                balance=DEFAULT_BALANCE,
-                is_finished=False,
+        if top_n > 0:
+            # Fetch only ACTIVE (non-eliminated) users ordered by balance
+            result = await db.execute(
+                select(User)
+                .where(User.is_eliminated == False)
+                .order_by(User.balance.desc())
             )
-        )
+            all_users = result.scalars().all()
+
+            kept_ids = {u.id for u in all_users[:top_n]}
+            eliminated_ids = [str(u.id) for u in all_users[top_n:]]
+
+            # Mark eliminated users
+            if eliminated_ids:
+                await db.execute(
+                    update(User)
+                    .where(User.id.notin_(kept_ids))
+                    .values(is_eliminated=True)
+                )
+
+            # Reset only kept users
+            await db.execute(
+                update(User)
+                .where(User.id.in_(kept_ids))
+                .values(
+                    balance=DEFAULT_BALANCE,
+                    is_finished=False,
+                    is_eliminated=False,
+                )
+            )
+        else:
+            # No elimination — reset everyone
+            await db.execute(
+                update(User).values(
+                    balance=DEFAULT_BALANCE,
+                    is_finished=False,
+                    is_eliminated=False,
+                )
+            )
 
         # Delete all transactions
         await db.execute(
@@ -289,11 +335,20 @@ async def reset_game():
 
     game_state.reset()
 
-    await manager.broadcast({"type": "GAME_RESET"})
+    # Broadcast reset — include eliminated IDs so those clients can auto-logout
+    await manager.broadcast({
+        "type": "GAME_RESET",
+        "eliminated_user_ids": eliminated_ids,
+    })
+
+    msg = "All balances, inventories, and items reset."
+    if top_n > 0:
+        msg = f"Top {top_n} players kept. {len(eliminated_ids)} player(s) eliminated."
 
     return {
         "status": "ok",
-        "message": "All balances, inventories, and items reset.",
+        "message": msg,
+        "eliminated_count": len(eliminated_ids),
     }
 
 

@@ -33,6 +33,7 @@ class User(Base):
     roll_number = Column(String(50), nullable=True)
     balance = Column(Float, default=100_000.00, nullable=False)
     is_finished = Column(Boolean, default=False, nullable=False)
+    is_eliminated = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     transactions = relationship("Transaction", back_populates="user", lazy="selectin")

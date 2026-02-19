@@ -30,7 +30,7 @@ const RANK_CONFIG = [
 ];
 
 export default function GameOverModal() {
-    const { gameResult, clearGameResult } = useGame();
+    const { gameResult, clearGameResult, user } = useGame();
     const [visible, setVisible] = useState(false);
     const [dismissed, setDismissed] = useState(false);
 
@@ -66,6 +66,18 @@ export default function GameOverModal() {
     if (!gameResult || dismissed) return null;
 
     const winners = gameResult.winners || [];
+    const leaderboard = gameResult.leaderboard || [];
+
+    // Find current user's rank
+    const myEntry = leaderboard.find(e => String(e.user_id) === String(user?.id));
+    const myRank = myEntry?.rank;
+    const totalPlayers = leaderboard.length;
+
+    function ordinal(n) {
+        const s = ['th', 'st', 'nd', 'rd'];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
 
     return (
         <div
@@ -122,6 +134,26 @@ export default function GameOverModal() {
                         </h2>
                         <p className="text-xs text-[#64748b] tracking-[0.2em] uppercase">Final Results</p>
                     </div>
+
+                    {/* Your Rank */}
+                    {myRank && (
+                        <div className={`text-center !mb-6 !py-3 !px-4 rounded-xl border ${myRank <= 3
+                                ? 'bg-[#eab308]/10 border-[#eab308]/30'
+                                : 'bg-[#8b5cf6]/10 border-[#8b5cf6]/30'
+                            }`}>
+                            <p className="text-sm text-[#94a3b8]">You finished</p>
+                            <p className={`text-3xl font-extrabold tracking-tight ${myRank === 1 ? 'text-[#eab308]'
+                                    : myRank === 2 ? 'text-[#cbd5e1]'
+                                        : myRank === 3 ? 'text-[#e8a96b]'
+                                            : 'text-[#8b5cf6]'
+                                }`} style={{ fontFamily: 'Syne, sans-serif' }}>
+                                {ordinal(myRank)}
+                            </p>
+                            <p className="text-[10px] text-[#64748b] tracking-wider uppercase">
+                                out of {totalPlayers} player{totalPlayers !== 1 ? 's' : ''}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Podium */}
                     <div className="space-y-3">

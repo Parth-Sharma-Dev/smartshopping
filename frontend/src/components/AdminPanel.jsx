@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    Play, Square, RotateCcw, Wifi, Users, Zap, Hash,
+    Play, Square, RotateCcw, Users, Zap, Hash,
     ChevronDown, ChevronUp, Save, AlertTriangle,
-    Trophy, Package, DollarSign, BarChart3
+    Trophy, Package, DollarSign, BarChart3, Crown, Skull
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -14,6 +14,8 @@ export default function AdminPanel() {
     const [editValues, setEditValues] = useState({});
     const [sortField, setSortField] = useState('id');
     const [sortDir, setSortDir] = useState('asc');
+    const [topN, setTopN] = useState(0);
+    const [resetResult, setResetResult] = useState(null);
 
     // ── Fetch State ──────────────────────────────────────
     const fetchState = useCallback(async () => {
@@ -41,11 +43,14 @@ export default function AdminPanel() {
     async function doAction(url, label) {
         setLoading(label);
         setError('');
+        setResetResult(null);
         try {
             const res = await fetch(url, { method: 'POST' });
             const data = await res.json();
             if (!res.ok) {
                 setError(data.detail || `${label} failed`);
+            } else if (label === 'reset') {
+                setResetResult(data);
             }
             await fetchState();
             await fetchItems();
@@ -103,6 +108,10 @@ export default function AdminPanel() {
     const isActive = gameState?.is_active;
     const totalStock = items.reduce((s, i) => s + i.current_stock, 0);
     const soldOutCount = items.filter(i => i.is_sold_out).length;
+
+    const resetUrl = topN > 0
+        ? `/api/admin/reset-game?top_n=${topN}`
+        : '/api/admin/reset-game';
 
     return (
         <div className="h-full overflow-y-auto bg-[#0a0e1a] text-[#e2e8f0] font-mono">
@@ -170,7 +179,7 @@ export default function AdminPanel() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-3 !mt-5">
+                    <div className="flex flex-wrap items-end gap-3 !mt-5">
                         <button
                             onClick={() => doAction('/api/admin/start-game', 'start')}
                             disabled={isActive || !!loading}
@@ -193,16 +202,43 @@ export default function AdminPanel() {
                             {loading === 'stop' ? 'Stopping...' : 'Stop Game'}
                         </button>
 
-                        <button
-                            onClick={() => doAction('/api/admin/reset-game', 'reset')}
-                            disabled={isActive || !!loading}
-                            className="flex items-center gap-2 !px-6 !py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all
-                                bg-[#f59e0b] text-[#0a0e1a] hover:bg-[#d97706] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]
-                                disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                            {loading === 'reset' ? 'Resetting...' : 'Reset Round'}
-                        </button>
+                        {/* ── Top N Selector + Reset ── */}
+                        <div className="flex items-end gap-2 ml-auto">
+                            <div className="flex flex-col">
+                                <label className="text-[10px] uppercase tracking-wider text-[#64748b] mb-1.5 flex items-center gap-1">
+                                    <Crown className="w-3 h-3 text-[#f59e0b]" />
+                                    Advance Top
+                                </label>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={topN}
+                                        onChange={e => setTopN(Math.max(0, parseInt(e.target.value) || 0))}
+                                        className="w-16 bg-[#0f1629] border border-[#475569] rounded-lg !px-2.5 !py-2.5 text-white text-sm font-mono text-center
+                                            focus:outline-none focus:border-[#f59e0b] focus:ring-1 focus:ring-[#f59e0b]/30 transition-all"
+                                        placeholder="0"
+                                    />
+                                    <span className="text-[10px] text-[#64748b] whitespace-nowrap">
+                                        {topN > 0 ? 'players' : '= All'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => doAction(resetUrl, 'reset')}
+                                disabled={isActive || !!loading}
+                                className={`flex items-center gap-2 !px-6 !py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all
+                                    disabled:opacity-30 disabled:cursor-not-allowed
+                                    ${topN > 0
+                                        ? 'bg-gradient-to-r from-[#f59e0b] to-[#dc2626] text-white hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]'
+                                        : 'bg-[#f59e0b] text-[#0a0e1a] hover:bg-[#d97706] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)]'
+                                    }`}
+                            >
+                                {topN > 0 ? <Skull className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                                {loading === 'reset' ? 'Resetting...' : topN > 0 ? `Eliminate & Reset` : 'Reset Round'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Error */}
@@ -210,6 +246,14 @@ export default function AdminPanel() {
                         <div className="!mt-4 flex items-center gap-2 bg-[#3b1214] border border-[#ef4444]/50 rounded-lg !px-4 !py-3 text-sm text-[#fca5a5]">
                             <AlertTriangle className="w-4 h-4 text-[#ef4444] shrink-0" />
                             {error}
+                        </div>
+                    )}
+
+                    {/* Reset result feedback */}
+                    {resetResult && resetResult.eliminated_count > 0 && (
+                        <div className="!mt-4 flex items-center gap-2 bg-[#1a1207] border border-[#f59e0b]/40 rounded-lg !px-4 !py-3 text-sm text-[#fcd34d]">
+                            <Skull className="w-4 h-4 text-[#f59e0b] shrink-0" />
+                            {resetResult.message}
                         </div>
                     )}
 

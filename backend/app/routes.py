@@ -37,7 +37,13 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
     existing = await db.execute(
         select(User).where(User.username == req.username)
     )
-    if existing.scalar_one_or_none():
+    existing_user = existing.scalar_one_or_none()
+    if existing_user:
+        if existing_user.is_eliminated:
+            raise HTTPException(
+                status_code=403,
+                detail="You have been eliminated from the game."
+            )
         raise HTTPException(status_code=409, detail="Username already taken")
 
     user = User(username=req.username, roll_number=req.roll_number)
@@ -63,6 +69,8 @@ async def get_me(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.is_eliminated:
+        raise HTTPException(status_code=403, detail="You have been eliminated from the game.")
 
     # Build inventory from transactions
     result = await db.execute(
@@ -97,7 +105,9 @@ async def list_items(db: AsyncSession = Depends(get_db)):
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def leaderboard(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).order_by(User.is_finished.desc(), User.balance.desc())
+        select(User)
+        .where(User.is_eliminated == False)
+        .order_by(User.is_finished.desc(), User.balance.desc())
     )
     users = result.scalars().all()
     return [

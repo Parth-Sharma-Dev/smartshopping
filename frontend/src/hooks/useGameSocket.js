@@ -7,6 +7,7 @@ export function useGameSocket() {
     updateItem, setLeaderboard, setGamePhase,
     setWsConnected, addToast,
     setGameActive, setGameResult, updateBalance, setItems,
+    logout,
   } = useGame();
 
   const wsRef = useRef(null);
@@ -53,12 +54,23 @@ export function useGameSocket() {
 
           case 'GAME_OVER':
             setGameActive(false);
-            setGameResult({ winners: msg.winners || [] });
+            setGameResult({ winners: msg.winners || [], leaderboard: msg.leaderboard || [] });
             setGamePhase('lobby');
             addToast({ type: 'info', message: '🏁 Game over! Check the results.' });
             break;
 
           case 'GAME_RESET':
+            // Check if current user was eliminated
+            if (msg.eliminated_user_ids?.length > 0 && user?.id) {
+              if (msg.eliminated_user_ids.includes(String(user.id))) {
+                addToast({ type: 'error', message: '❌ You have been eliminated from the game.' });
+                // Small delay so they see the toast before logout
+                setTimeout(() => {
+                  logout();
+                }, 1500);
+                break;
+              }
+            }
             // Refresh items from server
             fetch('/api/items')
               .then(r => r.ok ? r.json() : [])
@@ -100,7 +112,7 @@ export function useGameSocket() {
         // Ignore malformed messages
       }
     };
-  }, [setWsConnected, setGamePhase, setGameActive, setGameResult, updateItem, setLeaderboard, addToast, updateBalance, setItems, user?.id]);
+  }, [setWsConnected, setGamePhase, setGameActive, setGameResult, updateItem, setLeaderboard, addToast, updateBalance, setItems, logout, user?.id]);
 
   // Connect once user is logged in
   useEffect(() => {

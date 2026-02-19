@@ -5,7 +5,7 @@ import Leaderboard from './Leaderboard';
 import {
     Wallet, Wifi, WifiOff, User, Hash,
     Utensils, Gem, Shirt, Cpu, Package, LayoutGrid,
-    Menu, X, Image as ImageIcon, Sparkles
+    Menu, X
 } from 'lucide-react';
 
 const CATEGORY_ICONS = {
@@ -41,14 +41,14 @@ export default function Dashboard() {
     return (
         // Added !p-4 and gap-4 to the main container for global breathing room
         <div className="h-full w-full flex flex-col bg-[var(--color-void)] relative !p-4 md:!p-6 gap-4 md:gap-6 overflow-hidden">
-            
+
             {/* Scanline overlay - kept distinct but behind content */}
             <div className="scanline-overlay pointer-events-none" />
 
             {/* ═══ HEADER (HUD) ═══ */}
             {/* Changed from full-width border to a Floating Card design */}
             <header className="flex-none h-16 bg-[var(--color-slab)] rounded-xl border border-[var(--color-edge)] shadow-lg flex items-center !px-6 gap-6 z-20 relative">
-                
+
                 {/* Mobile hamburger */}
                 <button
                     className="lg:hidden text-[var(--color-muted)] hover:text-[var(--color-bright)] transition-colors !p-1"
@@ -90,8 +90,8 @@ export default function Dashboard() {
                         {wsConnected ? (
                             <>
                                 <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-profit)] opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-profit)]"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-profit)] opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--color-profit)]"></span>
                                 </span>
                                 <span className="hidden sm:inline">System Online</span>
                             </>
@@ -114,7 +114,7 @@ export default function Dashboard() {
                     flex-none w-64 flex flex-col gap-4 transition-transform duration-300
                     ${mobileMenuOpen ? 'absolute inset-0 bg-[var(--color-void)] z-30 !p-4 translate-x-0' : 'hidden lg:flex translate-x-0'}
                 `}>
-                    
+
                     {/* Navigation Panel */}
                     <div className="flex-1 bg-[var(--color-slab)] rounded-xl border border-[var(--color-edge)] overflow-hidden flex flex-col shadow-lg">
                         <div className="!px-6 !py-5 border-b border-[var(--color-edge)]/50">
@@ -123,12 +123,12 @@ export default function Dashboard() {
                                 Market Access
                             </span>
                         </div>
-                        
+
                         <nav className="flex-1 !px-4 !py-4 space-y-2 overflow-y-auto custom-scrollbar">
                             {ALL_CATEGORIES.map((cat) => {
                                 const Icon = CATEGORY_ICONS[cat] || Package;
                                 const active = activeCategory === cat;
-                                
+
                                 return (
                                     <button
                                         key={cat}
@@ -154,33 +154,13 @@ export default function Dashboard() {
                         </nav>
                     </div>
 
-                    {/* ── ITEM THUMBNAIL PLACEHOLDER ── */}
-                    {/* This is a static placeholder for "Featured" or "Selected" item */}
-                    <div className="h-48 bg-[var(--color-slab)] rounded-2xl border border-[var(--color-edge)] !p-4 shadow-lg flex flex-col">
-                        <div className="flex items-center gap-2 !mb-3">
-                            <Sparkles className="w-3 h-3 text-[var(--color-profit)]" />
-                            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted)]">Featured Item</span>
-                        </div>
-                        
-                        {/* THE PLACEHOLDER AREA */}
-                        <div className="flex-1 bg-[var(--color-void)] rounded-xl border border-[var(--color-edge)] border-dashed flex items-center justify-center relative group cursor-pointer overflow-hidden">
-                            {/* Placeholder Icon */}
-                            <div className="text-[var(--color-muted)] group-hover:text-[var(--color-primary)] transition-colors flex flex-col items-center gap-2">
-                                <ImageIcon className="w-8 h-8 opacity-50" />
-                                <span className="text-[10px] opacity-50">No Image Selected</span>
-                            </div>
-                            
-                            {/* If you have an image URL, render this instead:
-                            <img src={selectedItem.image} alt="Item" className="absolute inset-0 w-full h-full object-cover" /> 
-                            */}
-                        </div>
-                    </div>
+
                 </aside>
 
                 {/* ── MAIN CONTENT (Market Grid) ── */}
                 <main className="flex-1 min-w-0 bg-[var(--color-slab)] rounded-xl border border-[var(--color-edge)] shadow-lg flex flex-col overflow-hidden relative">
                     {/* Inner padding container for the grid */}
-                    <div className="flex-1 overflow-hidden !p-1"> 
+                    <div className="flex-1 overflow-hidden !p-1">
                         {/* We pass a class to Grid if it accepts className, or wrap it */}
                         <div className="h-full w-full overflow-y-auto !p-4 md:!p-6">
                             <MarketGrid activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
@@ -190,7 +170,7 @@ export default function Dashboard() {
 
                 {/* ── RIGHT SIDEBAR (Leaderboard) ── */}
                 <aside className="hidden md:flex flex-col w-72 bg-[var(--color-slab)] rounded-xl border border-[var(--color-edge)] shadow-lg overflow-hidden">
-                     <div className="!px-6 !py-5 border-b border-[var(--color-edge)]/50">
+                    <div className="!px-6 !py-5 border-b border-[var(--color-edge)]/50">
                         <span className="text-xs font-bold tracking-[0.2em] uppercase text-[var(--color-muted)]">
                             Top Players
                         </span>

@@ -128,10 +128,10 @@ export default function MarketGrid({ activeCategory, setActiveCategory }) {
                 {/* Footer Section - Inside scroll view */}
                 <footer className="!mt-12 !pt-8 !pb-4 border-t border-[var(--color-edge)]/50 text-center">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--color-muted)] opacity-60">
-                        Market Mayhem System v2.0
+                        Smart Shopping
                     </p>
                     <p className="text-[10px] text-[var(--color-muted)] !mt-2 opacity-40">
-                        © 2026 AI Nexus • Secure Transaction Layer
+                        © 2026 AI Nexus
                     </p>
                 </footer>
             </div>
