@@ -80,7 +80,7 @@ export default function MarketGrid({ activeCategory, setActiveCategory }) {
     return (
         <div className="flex flex-col h-full">
             {/* Search bar & Header - Added Padding */}
-            <div className="!px-6 !pt-6 !pb-4 w-6/12">
+            <div className="!px-6 !pt-6 !pb-4 w-full md:w-6/12">
                 <div className="relative !mb-1">
                     <Search className="absolute left-1 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-muted)]" />
                     <input
