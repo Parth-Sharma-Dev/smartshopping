@@ -11,7 +11,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -185,10 +185,50 @@ admin.add_view(ItemAdmin)
 admin.add_view(TransactionAdmin)
 
 
+# ── Admin Auth ───────────────────────────────────────────
+
+ADMIN_PASSWORD = "Rohit@100"
+ADMIN_COOKIE_NAME = "admin_token"
+ADMIN_TOKEN_VALUE = "access_granted_88c5"
+
+from fastapi import Request, Response
+
+async def verify_admin(request: Request):
+    """Dependency to check for admin session cookie."""
+    token = request.cookies.get(ADMIN_COOKIE_NAME)
+    if token != ADMIN_TOKEN_VALUE:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+from pydantic import BaseModel
+
+class AdminLoginRequest(BaseModel):
+    password: str
+
+@app.post("/api/admin/login")
+async def admin_login(body: AdminLoginRequest, response: Response):
+    if body.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    response.set_cookie(
+        key=ADMIN_COOKIE_NAME,
+        value=ADMIN_TOKEN_VALUE,
+        httponly=True,
+        samesite="lax",
+        secure=False,  # Set to True in production with HTTPS
+    )
+    return {"status": "ok", "message": "Logged in"}
+
+@app.post("/api/admin/logout")
+async def admin_logout(response: Response):
+    response.delete_cookie(ADMIN_COOKIE_NAME)
+    return {"status": "ok", "message": "Logged out"}
+
+
 # ── Admin: Game State ────────────────────────────────────
 
 @app.get("/api/admin/state", response_model=GameStateResponse)
-async def get_game_state():
+async def get_game_state(authorized: bool = Depends(verify_admin)):
     """Return the current game session state."""
     data = game_state.to_dict()
     data["connected_players"] = manager.connection_count
@@ -197,7 +237,7 @@ async def get_game_state():
 
 
 @app.post("/api/admin/start-game")
-async def start_game():
+async def start_game(authorized: bool = Depends(verify_admin)):
     """Start a new game round. Broadcasts GAME_STARTED to all clients."""
     if game_state.is_active:
         raise HTTPException(status_code=400, detail="Game is already running.")
@@ -212,7 +252,7 @@ async def start_game():
 
 
 @app.post("/api/admin/stop-game")
-async def stop_game():
+async def stop_game(authorized: bool = Depends(verify_admin)):
     """Stop the current game. Calculate winners and broadcast GAME_OVER."""
     if not game_state.is_active:
         raise HTTPException(status_code=400, detail="No game is currently running.")
@@ -257,7 +297,7 @@ async def stop_game():
 
 
 @app.post("/api/admin/reset-game")
-async def reset_game(top_n: int = 0):
+async def reset_game(top_n: int = 0, authorized: bool = Depends(verify_admin)):
     """Reset all users and items for a fresh round.
     If top_n > 0, only the top N players (by balance) advance;
     the rest are marked as eliminated.
@@ -355,7 +395,7 @@ async def reset_game(top_n: int = 0):
 # ── Admin: Update Item ──────────────────────────────────
 
 @app.patch("/api/admin/update-item/{item_id}", response_model=ItemResponse)
-async def admin_update_item(item_id: int, body: AdminItemUpdate):
+async def admin_update_item(item_id: int, body: AdminItemUpdate, authorized: bool = Depends(verify_admin)):
     """Admin endpoint to update item price/stock."""
     async with async_session() as db:
         item = await db.get(Item, item_id)

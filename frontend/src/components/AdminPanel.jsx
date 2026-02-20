@@ -17,11 +17,22 @@ export default function AdminPanel() {
     const [topN, setTopN] = useState(0);
     const [resetResult, setResetResult] = useState(null);
 
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [password, setPassword] = useState('');
+    const [loginError, setLoginError] = useState('');
+
     // ── Fetch State ──────────────────────────────────────
     const fetchState = useCallback(async () => {
         try {
             const res = await fetch('/api/admin/state');
-            if (res.ok) setGameState(await res.json());
+            if (res.status === 401) {
+                setIsAuthenticated(false);
+                return;
+            }
+            if (res.ok) {
+                setIsAuthenticated(true);
+                setGameState(await res.json());
+            }
         } catch { /* ignore */ }
     }, []);
 
@@ -35,7 +46,9 @@ export default function AdminPanel() {
     useEffect(() => {
         fetchState();
         fetchItems();
-        const interval = setInterval(fetchState, 3000);
+        const interval = setInterval(() => {
+            fetchState();
+        }, 3000); // Check every 3s
         return () => clearInterval(interval);
     }, [fetchState, fetchItems]);
 
@@ -113,6 +126,83 @@ export default function AdminPanel() {
         ? `/api/admin/reset-game?top_n=${topN}`
         : '/api/admin/reset-game';
 
+    // ── Login Handler ────────────────────────────────────
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoginError('');
+        try {
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password }),
+            });
+
+            if (res.ok) {
+                setIsAuthenticated(true);
+                setPassword('');
+                fetchState();
+                fetchItems();
+            } else {
+                setLoginError('Access Denied: Invalid Credentials');
+            }
+        } catch (err) {
+            setLoginError('Network Error');
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await fetch('/api/admin/logout', { method: 'POST' });
+            setIsAuthenticated(false);
+            setGameState(null);
+        } catch { /* ignore */ }
+    };
+
+    if (!isAuthenticated) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-[#0a0e1a] text-[#e2e8f0] font-mono">
+                <div className="w-full max-w-md p-8 bg-[#1e293b] border border-[#334155] rounded-xl shadow-2xl">
+                    <div className="flex justify-center mb-6">
+                        <div className="w-16 h-16 rounded-xl bg-[#f59e0b]/10 border border-[#f59e0b]/30 flex items-center justify-center">
+                            <Zap className="w-8 h-8 text-[#f59e0b]" />
+                        </div>
+                    </div>
+                    <h1 className="text-2xl font-bold text-center text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+                        ADMIN ACCESS
+                    </h1>
+                    <p className="text-xs text-center text-[#64748b] tracking-[0.2em] uppercase mb-8">Restricted Area</p>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter Access Code"
+                                className="w-full bg-[#0f1629] border border-[#475569] rounded-lg px-4 py-3 text-white text-sm font-mono focus:outline-none focus:border-[#f59e0b] focus:ring-1 focus:ring-[#f59e0b]/30 transition-all placeholder:text-[#475569]"
+                                autoFocus
+                            />
+                        </div>
+
+                        {loginError && (
+                            <div className="flex items-center gap-2 text-xs text-[#ef4444] bg-[#3b1214] border border-[#ef4444]/20 p-3 rounded-lg">
+                                <AlertTriangle className="w-4 h-4" />
+                                {loginError}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            className="w-full bg-[#f59e0b] text-[#0a0e1a] font-bold uppercase tracking-wider py-3 rounded-lg hover:bg-[#d97706] hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] transition-all"
+                        >
+                            Unlock Console
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full overflow-y-auto bg-[#0a0e1a] text-[#e2e8f0] font-mono">
             {/* ═══ HEADER ═══ */}
@@ -144,6 +234,12 @@ export default function AdminPanel() {
                             <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-[#10b981] animate-pulse' : 'bg-[#ef4444]'}`} />
                             {isActive ? 'LIVE' : 'OFFLINE'}
                         </div>
+                        <button
+                            onClick={handleLogout}
+                            className="ml-4 text-xs text-[#64748b] hover:text-white underline underline-offset-4"
+                        >
+                            Logout
+                        </button>
                     </div>
                 </div>
             </header>
