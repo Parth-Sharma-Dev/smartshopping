@@ -40,6 +40,7 @@ DECAY_PERCENTAGE = 0.02           # 2% price decay per tick
 MIN_PRICE_FACTOR = 0.5            # price floor = base_price * 0.5
 DEFAULT_BALANCE = 100_000.00      # starting balance for users
 DEFAULT_STOCK = 15                # starting stock for items
+PURCHASE_COOLDOWN = 30            # seconds between purchases for a user
 
 
 # ── Background Tasks ────────────────────────────────────

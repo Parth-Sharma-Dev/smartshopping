@@ -132,6 +132,33 @@ async def buy_item(req: BuyRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Game is not active. Wait for the admin to start.")
 
     async with db.begin():
+        # ── Cooldown Check ───────────────────────────
+        # Local import to avoid circular dependency
+        from .main import PURCHASE_COOLDOWN
+
+        # Check last purchase time for this user across ALL items
+        # We can do this check before locking to fail fast, but inside the transaction
+        last_txn_result = await db.execute(
+            select(Transaction.timestamp)
+            .where(Transaction.user_id == req.user_id)
+            .order_by(Transaction.timestamp.desc())
+            .limit(1)
+        )
+        last_txn_time = last_txn_result.scalar_one_or_none()
+
+        if last_txn_time:
+            # Calculate elapsed time
+            now = datetime.now(timezone.utc)
+            elapsed = (now - last_txn_time).total_seconds()
+            
+            if elapsed < PURCHASE_COOLDOWN:
+                remaining = int(PURCHASE_COOLDOWN - elapsed)
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Cooldown active. Please wait {remaining} seconds before your next purchase."
+                )
+
+        # ── Lock the item row ────────────────────────
         # ── Lock the item row ────────────────────────
         item_result = await db.execute(
             select(Item)
